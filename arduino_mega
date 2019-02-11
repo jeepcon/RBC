@@ -65,17 +65,18 @@ void loop() {
 
   Brake();
 
-  Serial.println(BrakeState);
 }
 
 void Brake() {
   
   if (digitalRead(Brake_IN) == HIGH) {
-    BrakeState = LOW;  
+    BrakeState = LOW;
+    Serial.println("BrakeState: LOW");
   }
   else
   {
     BrakeState = HIGH;
+    Serial.println("BrakeState: HIGH");
   }
 
   digitalWrite(BrakeRight, BrakeState);
