@@ -1,0 +1,83 @@
+// Output Pins
+const int LightBar1 = 16; //Red
+const int LightBar2 = 17; //Amber
+const int LightBar3 = 18; //Red
+const int LightBar4 = 19; //Red
+const int LightBar5 = 20; //Amber
+const int LightBar6 = 21; //Red
+
+const int BrakeRight = 22;
+const int BrakeLeft = 23;
+const int RunningRight = 24;
+const int RunningLeft = 25;
+const int TurnRight = 26;
+const int TurnLeft = 27;
+const int FlasherRight = 28;
+const int FlasherLeft = 29;
+const int BackupRight = 30;
+const int BackupLeft = 31;
+const int MarkerRight = 32;
+const int MarkerLeft = 33;
+
+const int FuelPump = 37;
+
+// Input Pins
+const int FuelLevel_IN = A0;
+const int AirTankPSI_IN = A1;
+
+const int Brake_IN = 53;
+
+int BrakeState = LOW;
+
+void setup() {
+
+  Serial.begin(9600);
+
+  pinMode(LightBar1, OUTPUT);
+  pinMode(LightBar2, OUTPUT);
+  pinMode(LightBar3, OUTPUT);
+  pinMode(LightBar4, OUTPUT);
+  pinMode(LightBar5, OUTPUT);
+  pinMode(LightBar6, OUTPUT);
+
+  pinMode(BrakeRight, OUTPUT);
+  pinMode(BrakeLeft, OUTPUT);
+  pinMode(RunningRight, OUTPUT);
+  pinMode(RunningLeft, OUTPUT);
+  pinMode(TurnRight, OUTPUT);
+  pinMode(TurnLeft, OUTPUT);
+  pinMode(FlasherRight, OUTPUT);
+  pinMode(FlasherLeft, OUTPUT);
+  pinMode(BackupRight, OUTPUT);
+  pinMode(BackupLeft, OUTPUT);
+  pinMode(MarkerRight, OUTPUT);
+  pinMode(MarkerLeft, OUTPUT);
+
+  pinMode(FuelPump, OUTPUT);
+ 
+  pinMode(AirTankPSI_IN, INPUT);
+  pinModeFuelLevel_IN, INPUT);
+
+  pinMode(Brake_IN, INPUT_PULLUP);
+}
+
+void loop() {
+
+  Brake();
+
+  Serial.print(BrakeState);
+}
+
+void Brake() {
+
+  BrakeState = digitalRead(Brake_IN);
+
+  digitalWrite(BrakeRight, BrakeState);
+  digitalWrite(BrakeLeft, BrakeState);
+  digitalWrite(LightBar1, BrakeState);
+  digitalWrite(LightBar3, BrakeState);
+  digitalWrite(LightBar4, BrakeState);
+  digitalWrite(LightBar6, BrakeState);
+
+}
+
