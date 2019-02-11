@@ -56,7 +56,7 @@ void setup() {
   pinMode(FuelPump, OUTPUT);
  
   pinMode(AirTankPSI_IN, INPUT);
-  pinModeFuelLevel_IN, INPUT);
+  pinMode(FuelLevel_IN, INPUT);
 
   pinMode(Brake_IN, INPUT_PULLUP);
 }
@@ -65,12 +65,18 @@ void loop() {
 
   Brake();
 
-  Serial.print(BrakeState);
+  Serial.println(BrakeState);
 }
 
 void Brake() {
-
-  BrakeState = digitalRead(Brake_IN);
+  
+  if (digitalRead(Brake_IN) == HIGH) {
+    BrakeState = LOW;  
+  }
+  else
+  {
+    BrakeState = HIGH;
+  }
 
   digitalWrite(BrakeRight, BrakeState);
   digitalWrite(BrakeLeft, BrakeState);
@@ -80,4 +86,3 @@ void Brake() {
   digitalWrite(LightBar6, BrakeState);
 
 }
-
