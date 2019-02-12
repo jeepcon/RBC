@@ -73,7 +73,7 @@ void setup() {
 void loop() {
 
   if (Serial.available()) {
-    SerialData = Serial.read();
+    SerialData = Serial.readString();
   }
 
   Brake();
