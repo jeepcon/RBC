@@ -1,30 +1,42 @@
-// Output Pins
-const int LightBar1 = 2; //Red
-const int LightBar2 = 3; //Amber
-const int LightBar3 = 4; //Red
-const int LightBar4 = 5; //Red
-const int LightBar5 = 6; //Amber
-const int LightBar6 = 7; //Red
-const int BrakeRight = 22; //Red
-const int BrakeLeft = 23; //Red
-const int RunningRight = 24;
-const int RunningLeft = 25;
-const int TurnRight = 26; //Amber
-const int TurnLeft = 27;  //Amber
-const int FlasherRight = 28; //Red
-const int FlasherLeft = 29;  //Red
-const int BackupRight = 30; //White
-const int BackupLeft = 31;  //White
-const int TrailerRight = 32;
-const int TrailerLeft = 33;
-const int Pump = 37;
+//#################################################
+// Setup Pins
+
+// Transistor Pins
+const int LightBar1 = 3;        //Red - Left
+const int LightBar2 = 5;        //Amber - Left
+const int LightBar3 = 7;        //Red - Center/Left
+const int LightBar4 = 9;        //Red - Center/Right
+const int LightBar5 = 11;       //Amber - Right
+const int LightBar6 = 13;       //Red - Right
+
+const int BrakeRight = 6;       //Red
+const int TurnRight = 10;        //Amber
+const int FlasherRight = 2;    //Red
+
+const int BrakeLeft = 8;        //Red
+const int TurnLeft = 12;         //Amber
+const int FlasherLeft = 4;     //Red
+
+// Mosfet Pins
+const int BackupAll = 44;     //White
+const int Pump = 46;
+
+// Relay Output Pins
+const int TrailerRight = 29;    //Red
+const int TrailerLeft = 26;     //Red
+const int RunningLights = 28;
+const int TBController = 27;
 
 // Input Pins
+const int Brake_IN = 69;
+const int TurnRight_IN = 68;
+const int TurnLeft_IN = 67;
+const int Emergency_IN = 66;
+const int Backup_IN = 65;
+const int Running_IN = 64;
+
 const int FuelLevel_IN = A0;
 const int AirTankPSI_IN = A1;
-const int Brake_IN = 45;
-const int TurnRight_IN = 44;
-const int TurnLeft_IN = 43;
 
 //#################################################
 // Setup Global Veriables
@@ -35,9 +47,18 @@ String BrakeState = "OFF";
 String EMLightState = "OFF";
 String TurnLeftState = "OFF";
 String TurnRightState = "OFF";
+String TurnLeftBlinker = "OFF";
+String TurnRightBlinker = "OFF";
 String FuelPumpState = "ON";
 String BackupState = "OFF";
 String RunningState = "OFF";
+int RunningLevel = 0;
+
+//#################################################
+// Setup Turn Signal Flashing
+const int signalInterval = 600; //Turn signal interval in milliseconds, SAE states 90 times a minute (600-700ms)
+long int previousMillis = 0;
+long int currentMillis = millis();
 
 //#################################################
 // Setup EM Flashing Lights
@@ -46,14 +67,6 @@ byte pins[] = {LightBar1, LightBar2, LightBar3, LightBar4, LightBar5, LightBar6,
 byte pinState[numberOfLights];
 long int changeTime[numberOfLights];
 int flashRate[numberOfLights];
-
-//#################################################
-// Setup Turn Signal Flashing
-const int signalInterval = 600; //Turn signal interval in milliseconds, SAE states 90 times a minute (600-700ms)
-unsigned long LeftpreviousMillis = 0;
-unsigned long RightpreviousMillis = 0;
-unsigned long LeftcurrentMillis = millis();
-unsigned long RightcurrentMillis = millis();
 
 //#################################################
 // Main Setup
@@ -70,18 +83,19 @@ void setup() {
   pinMode(LightBar6, OUTPUT);
   pinMode(BrakeRight, OUTPUT);
   pinMode(BrakeLeft, OUTPUT);
-  pinMode(RunningRight, OUTPUT);
-  pinMode(RunningLeft, OUTPUT);
   pinMode(TurnRight, OUTPUT);
   pinMode(TurnLeft, OUTPUT);
   pinMode(FlasherRight, OUTPUT);
   pinMode(FlasherLeft, OUTPUT);
-  pinMode(BackupRight, OUTPUT);
-  pinMode(BackupLeft, OUTPUT);
+  
+  pinMode(BackupAll, OUTPUT);
+  pinMode(Pump, OUTPUT);
+
+  pinMode(RunningLights, OUTPUT);
   pinMode(TrailerRight, OUTPUT);
   pinMode(TrailerLeft, OUTPUT);
+  pinMode(TBController, OUTPUT);
 
-  pinMode(Pump, OUTPUT);
 
   pinMode(AirTankPSI_IN, INPUT);
   pinMode(FuelLevel_IN, INPUT);
@@ -89,11 +103,14 @@ void setup() {
   pinMode(TurnRight_IN, INPUT_PULLUP);
   pinMode(TurnLeft_IN, INPUT_PULLUP);
   pinMode(Brake_IN, INPUT_PULLUP);
+  pinMode(Emergency_IN, INPUT_PULLUP);
+  pinMode(Backup_IN, INPUT_PULLUP);
+  pinMode(Running_IN, INPUT_PULLUP);
 
   for (int i = 0; i < numberOfLights; i++) {
     changeTime[i] = millis() + random(500, 900);
     flashRate[i] = random(300, 500);
-    pinState[i] = HIGH;
+    pinState[i] = LOW;
   }
 }
 
@@ -108,12 +125,14 @@ void loop() {
 
   //#################################################
   // Set states of fuctions
-  if (SerData.indexOf("BackEMLightsON") > -1) {
+  if ((digitalRead(Emergency_IN) == LOW) || (SerData.indexOf("BackEMLightsON") > -1)) {
     EMLightState = "ON";
   }
-  if (SerData.indexOf("BackEMLightsOFF") > -1) {
-    EMLightState = "OFF";
-    EMLightsOFF();
+  if ((digitalRead(Emergency_IN) == HIGH) || (SerData.indexOf("BackEMLightsOFF") > -1)) {
+    if (EMLightState == "ON") {
+      EMLightsOFF();
+      EMLightState = "OFF";
+    }
   }
   if (SerData.indexOf("FuelPumpON") > -1) {
     FuelPumpState = "ON";
@@ -121,28 +140,30 @@ void loop() {
   if (SerData.indexOf("FuelPumpOFF") > -1) {
     FuelPumpState = "OFF";
   }
-  if (SerData.indexOf("BackupLightsON") > -1) {
+  if ((digitalRead(Backup_IN) == LOW) || (SerData.indexOf("BackupLightsON") > -1)) {
     BackupState = "ON";
   }
-  if (SerData.indexOf("BackupLightsOFF") > -1) {
+  if ((digitalRead(Backup_IN) == HIGH) || (SerData.indexOf("BackupLightsOFF") > -1)) {
     BackupState = "OFF";
   }
-  if (SerData.indexOf("RunningLightsON") > -1) {
+  if ((digitalRead(Running_IN) == LOW) || (SerData.indexOf("RunningLightsON") > -1)) {
     RunningState = "ON";
+    RunningLevel = 30;
   }
-  if (SerData.indexOf("RunningLightsOFF") > -1) {
+  if ((digitalRead(Running_IN) == HIGH) || (SerData.indexOf("RunningLightsOFF") > -1)) {
     RunningState = "OFF";
+    RunningLevel = 0;
   }
-  if ((digitalRead(TurnRight_IN) == LOW) || (SerData.indexOf("RightTurnON") > -1)) {
+  if (digitalRead(TurnRight_IN) == LOW) {
     TurnRightState = "ON";
   }
-  if ((digitalRead(TurnRight_IN) == HIGH) || (SerData.indexOf("RightTurnOFF") > -1)) {
+  if (digitalRead(TurnRight_IN) == HIGH) {
     TurnRightState = "OFF";
   }
-  if ((digitalRead(TurnLeft_IN) == LOW) || (SerData.indexOf("RightLeftON") > -1)) {
+  if (digitalRead(TurnLeft_IN) == LOW) {
     TurnLeftState = "ON";
   }
-  if ((digitalRead(TurnLeft_IN) == HIGH) || (SerData.indexOf("RightLeftOFF") > -1)) {
+  if (digitalRead(TurnLeft_IN) == HIGH) {
     TurnLeftState = "OFF";
   }
   if (digitalRead(Brake_IN) == LOW) {
@@ -200,35 +221,39 @@ void loop() {
 //#################################################
 //#################################################
 void BrakeON() {
-  digitalWrite(BrakeRight, LOW);
-  digitalWrite(BrakeLeft, LOW);
-  digitalWrite(LightBar1, LOW);
-  digitalWrite(LightBar3, LOW);
-  digitalWrite(LightBar4, LOW);
-  digitalWrite(LightBar6, LOW);
-  digitalWrite(FlasherRight, LOW);
-  digitalWrite(FlasherLeft, LOW);
+  digitalWrite(BrakeRight, HIGH);
+  digitalWrite(BrakeLeft, HIGH);
+  digitalWrite(FlasherRight, HIGH);
+  digitalWrite(FlasherLeft, HIGH);
+  digitalWrite(LightBar1, HIGH);
+  digitalWrite(LightBar3, HIGH);
+  digitalWrite(LightBar4, HIGH);
+  digitalWrite(LightBar6, HIGH);
   digitalWrite(TrailerRight, LOW);
   digitalWrite(TrailerLeft, LOW);
+  digitalWrite(TBController, LOW);
 }
 
 void BrakeOFF() {
-  if (EMLightState == "OFF") {
-    digitalWrite(BrakeRight, HIGH);
-    digitalWrite(BrakeLeft, HIGH);
-    digitalWrite(LightBar1, HIGH);
-    digitalWrite(LightBar3, HIGH);
-    digitalWrite(LightBar4, HIGH);
-    digitalWrite(LightBar6, HIGH);
-    digitalWrite(FlasherRight, HIGH);
-    digitalWrite(FlasherLeft, HIGH);
-  }
+  digitalWrite(TBController, HIGH);
   if (TurnRightState == "OFF") {
     digitalWrite(TrailerRight, HIGH);
   }
   if (TurnLeftState == "OFF") { 
     digitalWrite(TrailerLeft, HIGH);
   }
+  
+  if (EMLightState == "OFF") {
+    analogWrite(BrakeRight, RunningLevel);
+    analogWrite(BrakeLeft, RunningLevel);
+    analogWrite(FlasherRight, RunningLevel);
+    analogWrite(FlasherLeft, RunningLevel);
+    analogWrite(LightBar1, RunningLevel);
+    analogWrite(LightBar3, RunningLevel);
+    analogWrite(LightBar4, RunningLevel);
+    analogWrite(LightBar6, RunningLevel);
+  }
+
 }
 
 //#################################################
@@ -236,6 +261,7 @@ void EMLightsON() {
   if (BrakeState == "OFF") {
     for (int i = 0; i < numberOfLights; i++) {
       if (changeTime[i] <= millis()) {
+        Serial.println("Running");
         pinState[i] = ~pinState[i];
         digitalWrite(pins[i], pinState[i]);
         changeTime[i] = millis() + flashRate[i];
@@ -244,74 +270,74 @@ void EMLightsON() {
     }
   }
   if (BrakeState == "ON")  {
-    digitalWrite(TurnRight, HIGH);
-    digitalWrite(LightBar5, HIGH);
-    digitalWrite(TurnLeft, HIGH);
-    digitalWrite(LightBar2, HIGH);
+    analogWrite(TurnRight, RunningLevel);
+    analogWrite(LightBar5, RunningLevel);
+    analogWrite(TurnLeft, RunningLevel);
+    analogWrite(LightBar2, RunningLevel);
   }
 }
 
 void EMLightsOFF() {
-  digitalWrite(LightBar1, HIGH);
-  digitalWrite(LightBar2, HIGH);
-  digitalWrite(LightBar3, HIGH);
-  digitalWrite(LightBar4, HIGH);
-  digitalWrite(LightBar5, HIGH);
-  digitalWrite(LightBar6, HIGH);
-  digitalWrite(FlasherRight, HIGH);
-  digitalWrite(FlasherLeft, HIGH);
-  digitalWrite(TurnRight, HIGH);
-  digitalWrite(TurnLeft, HIGH);
+  analogWrite(LightBar1, RunningLevel);
+  analogWrite(LightBar2, RunningLevel);
+  analogWrite(LightBar3, RunningLevel);
+  analogWrite(LightBar4, RunningLevel);
+  analogWrite(LightBar5, RunningLevel);
+  analogWrite(LightBar6, RunningLevel);
+  analogWrite(FlasherRight, RunningLevel);
+  analogWrite(FlasherLeft, RunningLevel);
+  analogWrite(TurnRight, RunningLevel);
+  analogWrite(TurnLeft, RunningLevel);
 }
 
 //#################################################
 void FuelPumpON() {
-  digitalWrite(Pump, LOW);
+  digitalWrite(Pump, HIGH);
 }
 
 void FuelPumpOFF() {
-  digitalWrite(Pump, HIGH);
+  digitalWrite(Pump, LOW);
 }
 
 //#################################################
 void BackupLightsON() {
-  digitalWrite(BackupRight, LOW);
-  digitalWrite(BackupLeft, LOW);
+  digitalWrite(BackupAll, HIGH);
 }
 
 void BackupLightsOFF() {
-  digitalWrite(BackupRight, HIGH);
-  digitalWrite(BackupLeft, HIGH);
+  digitalWrite(BackupAll, LOW);
 }
 
 //#################################################
 void RunningLightsON() {
-  digitalWrite(RunningRight, LOW);
-  digitalWrite(RunningLeft, LOW);
+  digitalWrite(RunningLights, LOW);
 }
 
 void RunningLightsOFF() {
-  digitalWrite(RunningRight, HIGH);
-  digitalWrite(RunningLeft, HIGH);
+  digitalWrite(RunningLights, HIGH);
 }
 
 //#################################################
 void TurnRightON() {
   if (EMLightState == "OFF")  {
-    RightcurrentMillis = millis();
-    if (RightcurrentMillis - RightpreviousMillis >= signalInterval) { //if time elapsed is greater than the signal interval
-      RightpreviousMillis = RightcurrentMillis; //then reset time
-      if (digitalRead(TurnRight) == HIGH) { //if right state was low
-        digitalWrite(TurnRight, LOW);
-        digitalWrite(LightBar5, LOW);
-        digitalWrite(TrailerRight, LOW);
-      }
-      else {
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= signalInterval) { //if time elapsed is greater than the signal interval
+      previousMillis = currentMillis; //then reset time
+      
+      if (TurnRightBlinker == "OFF") {
         digitalWrite(TurnRight, HIGH);
         digitalWrite(LightBar5, HIGH);
+        digitalWrite(TrailerRight, LOW);
+        TurnRightBlinker = "ON";
+      }
+      
+      else {
+        analogWrite(TurnRight, RunningLevel);
+        analogWrite(LightBar5, RunningLevel);
         if (BrakeState == "OFF")  {
           digitalWrite(TrailerRight, HIGH);
         }
+        TurnRightBlinker = "OFF";
       }
     }
   }
@@ -319,31 +345,36 @@ void TurnRightON() {
 
 void TurnRightOFF() {
   if (EMLightState == "OFF") {
-    digitalWrite(TurnRight, HIGH);
-    digitalWrite(LightBar5, HIGH);
+    analogWrite(TurnRight, RunningLevel);
+    analogWrite(LightBar5, RunningLevel);
     if (BrakeState == "OFF")  {
       digitalWrite(TrailerRight, HIGH);
     }
+    TurnRightBlinker = "OFF";
   }
 }
 
 //#################################################
 void TurnLeftON() {
   if (EMLightState == "OFF") {
-    LeftcurrentMillis = millis();
-    if (LeftcurrentMillis - LeftpreviousMillis >= signalInterval) { //if time elapsed is greater than the signal interval
-      LeftpreviousMillis = LeftcurrentMillis; //then reset time
-      if (digitalRead(TurnLeft) == HIGH) {
-        digitalWrite(TurnLeft, LOW);
-        digitalWrite(LightBar2, LOW);
-        digitalWrite(TrailerLeft, LOW);
-      }
-      else {
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= signalInterval) { //if time elapsed is greater than the signal interval
+      previousMillis = currentMillis; //then reset time
+      
+      if (TurnLeftBlinker == "OFF") {
         digitalWrite(TurnLeft, HIGH);
         digitalWrite(LightBar2, HIGH);
+        digitalWrite(TrailerLeft, LOW);
+        TurnLeftBlinker = "ON";
+      }
+
+      else {
+        analogWrite(TurnLeft, RunningLevel);
+        analogWrite(LightBar2, RunningLevel);
         if (BrakeState == "OFF")  {
           digitalWrite(TrailerLeft, HIGH);
         }
+        TurnLeftBlinker = "OFF";
       }
     }
   }
@@ -351,11 +382,12 @@ void TurnLeftON() {
 
 void TurnLeftOFF() {
   if (EMLightState == "OFF") {
-    digitalWrite(TurnLeft, HIGH);
-    digitalWrite(LightBar2, HIGH);
+    analogWrite(TurnLeft, RunningLevel);
+    analogWrite(LightBar2, RunningLevel);
     if (BrakeState == "OFF")  {
       digitalWrite(TrailerLeft, HIGH);
     }
+      TurnLeftBlinker = "OFF";
   }
 }
 
