@@ -1,4 +1,4 @@
-<h1 style="text-align: center;">Welcome to Tucker's Jeep Rear Body Controler</h1>
+<h1 style="text-align: center;">Welcome to Tucker's Jeep Rear Body Controller</h1>
 <p style="text-align: center;"><span style="color: #ff0000;"><strong>This tool is for testing and educational use. &nbsp;</strong></span></p>
 <p>This tool is intended to contonol the fuctions of a custom Jeep. &nbsp;This software and features should not be used in any application that safety might be an issue. &nbsp;Use at your own risk.</p>
 <h2><strong>To Install this tool: </strong></h2>
